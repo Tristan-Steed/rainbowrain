@@ -1,342 +1,261 @@
-import turtle 
+import pygame
 import random
-import time
-from threading import Thread
+import sys
+import math
+from pygame.locals import *
 
+# Initialize Pygame
+pygame.init()
 
-bucketPosition=0
-score=0
-miss_count=0
-bossHealth=100
-is_active=False
+# Get the screen info for fullscreen
+screen_info = pygame.display.Info()
+WINDOW_WIDTH = screen_info.current_w
+WINDOW_HEIGHT = screen_info.current_h
 
-class Raindrop:
-    def __init__(self,startx,starty,speed_value):
-        self.starty=starty
-        self.startx=startx
-        screenstore=turtle.screensize()
-        screeny=screenstore[1]
-        self.tspawn=turtle.Turtle()
-        self.tspawn.hideturtle();
-        self.tspawn.speed(speed_value)
-        self.tspawn.tilt(90)
-        self.tspawn.tilt(180)
-        #print(str(tspawn.pos()))
-        self.tspawn.color('red')
-        self.tspawn.penup();
-        self.tspawn.setpos(startx,starty);
-        self.tspawn.showturtle()
-        self.tspawn.speed(speed_value)
-       # tspawn.setx(startx)
-        #tspawn.sety(starty)
-        #tspawn.pendown()
-        self.tspawn.goto(startx,350)#starts the arrow off
-        self.tspawn.goto(startx,-400)#returns the arrow
-       
+# Constants
+FPS = 60
+RAINDROP_SPEED = 4
+PLAYER_SPEED = 12
+RAINDROP_SIZE = 15
+PLAYER_WIDTH = 120
+PLAYER_HEIGHT = 40  # Increased height for parabola
+BOSS_SIZE = 80
+BALL_DELAY = 15
 
-    def collidesWith(self,object):
-        if object.pos()[0]==self.tspawn.pos()[0] and object.pos()[1]==self.tspawn.pos()[1]:
-            return True
-        return False
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
 
-    def returnArrow(self):
-        self.tspawn.tilt(180)
-        self.tspawn.color('blue')
-        self.tspawn.goto(self.startx,boss.ycor())
-        #print(str(tspawn.pos()))
-        self.dropPosition=self.tspawn.position()
+# Set up the window
+screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.FULLSCREEN)
+pygame.display.set_caption('Red Rain Defender')
+clock = pygame.time.Clock()
 
+# Game state
+class GameState:
+    def __init__(self):
+        self.score = 0
+        self.miss_count = 0
+        self.boss_health = 100
+        self.is_active = False
+        self.player_x = WINDOW_WIDTH // 2
+        self.balls = []
+        self.ball_delay = 0
+        self.font = pygame.font.Font(None, 36)
+        self.big_font = pygame.font.Font(None, 72)
+        self.is_fullscreen = True
+        self.victory = False
 
-    def destroy(self):
-        self.tspawn.reset()
+    def reset(self):
+        self.score = 0
+        self.miss_count = 0
+        self.boss_health = 100
+        self.is_active = True
+        self.balls = []
+        self.ball_delay = BALL_DELAY
+        self.victory = False
 
-    def returnDropPosition(self):
-        return self.dropPosition
+class Ball:
+    def __init__(self, boss_x, boss_y):
+        self.x = boss_x
+        self.y = boss_y
+        self.color = RED
+        self.is_caught = False
+        self.speed_y = RAINDROP_SPEED
+        self.speed_x = 0
+        self.rect = pygame.Rect(self.x, self.y, RAINDROP_SIZE, RAINDROP_SIZE)
+        self.is_active = True
 
-screen=turtle.Screen()
-screen.title("Red Rain Defender")
-screen.setworldcoordinates(-700,-500,700,500)
-turtle.bgcolor("black")
+    def update(self):
+        self.x += self.speed_x
+        self.y += self.speed_y
+        self.rect.x = self.x
+        self.rect.y = self.y
 
+        # Bounce off walls
+        if self.x <= 0 or self.x >= WINDOW_WIDTH:
+            self.speed_x = -self.speed_x
+            self.x = max(0, min(self.x, WINDOW_WIDTH))
 
-#screen.clear()
-#turtle.color('deep pink')
-
-character=turtle.Turtle()
-
-
-boss=turtle.Turtle()
-boss.shapesize(5,5,12)
-boss.penup()
-boss.speed(500)
-boss.goto(272.00,400)
-boss.speed(1000)
-boss.shape("turtle")
-boss.color("red")
-boss.tilt(270)
-
+    def reflect(self, paddle_x, paddle_width):
+        # Calculate position relative to paddle center
+        relative_x = (self.x - paddle_x) / (paddle_width / 2)
         
-            #self.character=turtle.Turtle();
-character.penup()
-character.speed(500)
-character.goto(272.00,-400.00)
-character.speed(100)
-screen.addshape("boss.gif")
-character.shape("boss.gif")
-character.color("blue")
-
-textbot=turtle.Turtle()
-textbot.hideturtle()
-
-'''TODO add switch case'''
-def update_miss_count_txt():
-    global miss_count
-    global textbot
-    textbot.reset()
-    miss_star="* * * *"
-    if(miss_count==1):
-        miss_star="* * *"
-    elif(miss_count==2):
-        miss_star="* *"
-    elif(miss_count==3):
-        miss_star="*"
-    elif(miss_count>3):
-        miss_star="none"
-
-    textbot.hideturtle()
-    textbot.penup()
-    textbot.goto(600,450)
-    style = ('Courier', 15, 'bold')
-    textbot.color("yellow")
-    textbot.write("Lives \n"+miss_star, font=style, align='center')
-
-
-screenwidth=screen.window_width()
-spacing=screenwidth/10
-
-playerInfo=turtle
-playerInfo.hideturtle()
-
-
-def updatePlayerHealth():
-    
-    global playerInfo
-
-    miss_star=""
-    if(miss_count==1):
-        miss_star="*"
-    elif(miss_count==2):
-        miss_star="**"
-    elif(miss_count>2):
-        miss_star="***"
-
-    style = ('Courier', 30, 'italic')
-    playerInfo.speed(500)
-    playerInfo.reset()
-    playerInfo.penup()
-    playerInfo.hideturtle()
-    playerInfo.goto(0,character.ycor()-60)
-    playerInfo.color('blue')
-
-
-
-    #writer.write("Health: \n"+str(bossHealth)+"%"+'\n'+"   "+miss_star, font=style, align='center')
-    playerInfo.write("MISSES: "+miss_star, font=style, align='center')
-
-
-def createCoordinateMatrix():
-    spawnCoordinates=[]
-    startingvalue=-400
-    for i in range(10):
-        spawnCoordinates.append(startingvalue)
-        startingvalue+=spacing
-    return spawnCoordinates
-
-coordMatrix=createCoordinateMatrix()
-
-def k2():
-    #boss.forward(spacing)
-    if(character.xcor()>-600 and character.xcor()<600):
-        character.forward(spacing)
-    elif(character.xcor()<-600):
-        character.goto(character.xcor()+spacing,character.ycor())
-    elif(character.xcor()>600):
-        character.goto(character.xcor()-spacing,character.ycor())     
-    global bucketPosition 
-    bucketPosition =character.xcor()
-
-
-
-def k3():
-    #boss.backward(spacing)
-    if(character.xcor()>-600 and character.xcor()<600):
-        character.backward(spacing)
-    elif(character.xcor()<-600):
-        character.goto(character.xcor()+spacing,character.ycor())
-    elif(character.xcor()>600):
-        character.goto(character.xcor()-spacing,character.ycor())
-    
-    global bucketPosition 
-    bucketPosition =character.xcor()
-
-
-
-
-
-
-"""
-def spawnrow():
-    startingvalue=-400
-    for i in range(50):
-        index=random.randint(0,len(coordMatrix)-1)
-        tempdrop=Raindrop(coordMatrix[index],400)
-    #turtle.write("The score is "+str(tempdrop.returnDropPosition)+"\n", font=style, align='center')
-        print("The score is "+str(type(tempdrop.returnDropPosition()))
-        if(index==bucketPosition):
-            score=score+1
-    #turtle.write("The score is "+str(score), font=style, align='center')
-
-"""
-
-writer=turtle
-writer.hideturtle()
-
-
-
-
-
-def updateHealth():
-    global writer
-    global score
-
-
-    style = ('Courier', 30, 'italic')
-
-    #writer.write("Health: \n"+str(bossHealth)+"%"+'\n'+"   "+miss_star, font=style, align='center')
-    writer.speed(500)
-    writer.reset()
-    writer.penup()
-    writer.hideturtle()
-    writer.goto(boss.xcor(),boss.ycor()+30)
-    writer.color('red')
-
-
-    writer.write("Health: "+str(bossHealth)+"%"+'\n'+"   ", font=style, align='center')
-
-    #writer.hideturtle()
-
-
-def end_game():
-    global writer
-    global score
-    writer.speed(500)
-    writer.reset()
-    writer.hideturtle()
-    writer.color('red')
-    style = ('Courier', 50, 'bold')
-    writer.write("Game Over \nFinal score: "+str(score), font=style, align='center')
-    #writer.hideturtle()
-
-def spawnrow():
-    global is_active
-    is_active=True
-    update_miss_count_txt()
-    for i in range(50000):
-        global score
-        global miss_count
-        global bossHealth
-        miss_count_first=miss_count
-        index=random.randint(0,len(coordMatrix)-1)
-        ''' Gets raindrop position '''
-        boss.goto(coordMatrix[index],300)
-  
-        if __name__ == '__main__':
-            Thread(target = updateHealth).start()
-            if(miss_count>miss_count_first):
-                Thread(target = updatePlayerHealth).start()
+        # Use a concave parabolic function to determine reflection angle
+        # y = -ax^2 + bx + c, where a determines the curve's steepness
+        a = 0.5  # Controls the curve of the parabola
+        normal_angle = math.atan(-2 * a * relative_x)  # Derivative of concave parabola gives normal
         
-        tempdrop=Raindrop(coordMatrix[index],350,4)
-        #print("-----coordmat:"+str(coordMatrix[index])+"*****bucket:"+str(bucketPosition))
+        # Calculate reflection angle based on normal
+        incident_angle = math.atan2(self.speed_y, self.speed_x)
+        reflection_angle = 2 * normal_angle - incident_angle
+        
+        # Set new velocity with increased speed
+        speed = RAINDROP_SPEED * 1.5
+        self.speed_x = speed * math.cos(reflection_angle)
+        self.speed_y = -speed * math.sin(reflection_angle)
+        
+        self.is_caught = True
+        self.color = BLUE
 
-        if(tempdrop.collidesWith(character)):
-            scorestore=score
-            score+=1
-            tempdrop.returnArrow()
+    def draw(self, surface):
+        pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), RAINDROP_SIZE // 2)
 
-            if(tempdrop.collidesWith(boss)):
-                bossHealth-=1
-                boss.color('blue')
-                boss.right(180)
-                time.sleep(0.25)
-                boss.color('red')
-                boss.right(180)
-                
-     
-            tempdrop.destroy()
+def draw_parabolic_paddle(surface, x, width, height, color):
+    # Draw a concave parabolic paddle
+    points = []
+    center_x = x + width // 2
+    a = 0.5  # Same as in Ball.reflect()
+    
+    for i in range(width + 1):
+        relative_x = (i - width/2) / (width/2)
+        y = -a * relative_x * relative_x * height  # Negative sign makes it concave
+        points.append((x + i, WINDOW_HEIGHT - 100 + y))
+    
+    if len(points) > 1:
+        pygame.draw.lines(surface, color, False, points, 3)
 
-        else:
-            miss_count+=1
-            update_miss_count_txt()
-            tempdrop.destroy()
-            if(miss_count>3):
-                is_active=False
-                end_game()
-                return 0
-            print("Charater position: "+str(character.position())+"coordmatrix: "+str(coordMatrix[index])+"*****")
-            print("\n "+str(miss_count)+'\n')
-            print("Star added \n")
-            print("The matrix: "+str(coordMatrix))
-start_text=turtle
+def toggle_fullscreen(game_state):
+    global screen, WINDOW_WIDTH, WINDOW_HEIGHT
+    game_state.is_fullscreen = not game_state.is_fullscreen
+    if game_state.is_fullscreen:
+        screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.FULLSCREEN)
+    else:
+        screen = pygame.display.set_mode((800, 600))
 
-def launch():
-    global is_active
-    global start_text
-    global bossHealth
-    global miss_count
-    if(is_active==False):
-        score=0
-        bossHealth=100
-        miss_count=0
-        startEasyGame()
-        start_text.reset()
-        start_text.destroy()
+def spawn_ball(boss_rect):
+    return Ball(boss_rect.centerx, boss_rect.bottom)
 
-def startScreen():
-    global character
-    global is_active
-    global start_text
-    boss.hideturtle()
-    character.hideturtle()
-    start_text.color('red')
-    style = ('Courier', 30, 'italic')
-    start_text.write("Click the spacebar( |__________| ) to start game: \n"+'\n'+"   ", font=style, align='center')
-    screen.listen()
-    if(is_active==False):
-        screen.onkey(launch,"space")
+def main():
+    global screen
+    game_state = GameState()
+    player_rect = pygame.Rect(WINDOW_WIDTH // 2 - PLAYER_WIDTH // 2, 
+                            WINDOW_HEIGHT - 100, 
+                            PLAYER_WIDTH, 
+                            PLAYER_HEIGHT)
+    boss_rect = pygame.Rect(WINDOW_WIDTH // 2 - BOSS_SIZE // 2, 
+                          50, 
+                          BOSS_SIZE, 
+                          BOSS_SIZE)
+    
+    # Game loop
+    while True:
+        # Event handling
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == KEYDOWN:
+                if event.key == K_SPACE and not game_state.is_active:
+                    game_state.reset()
+                elif event.key == K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+                elif event.key == K_f:  # Toggle fullscreen
+                    toggle_fullscreen(game_state)
 
-def startEasyGame():
-    global character
-    boss.showturtle()
-    character.showturtle()
-    screen.listen()
-    #screen.ontimer(graphicalText,10)
-    screen.ontimer(spawnrow,100)
-    screen.onkey(k3, "Left")
-    screen.onkey(k2, "Right")
+        # Get keyboard input
+        keys = pygame.key.get_pressed()
+        if game_state.is_active:
+            if keys[K_LEFT] and player_rect.left > 0:
+                player_rect.x -= PLAYER_SPEED
+            if keys[K_RIGHT] and player_rect.right < WINDOW_WIDTH:
+                player_rect.x += PLAYER_SPEED
 
-startScreen()
-#turtle.penup()
-#turtle.goto(200,400)
-#turtle.pendown()
-#turtle.goto(200,200)
-"""
-drop=Raindrop(0,400)
-drop2=Raindrop(100,400)
-drop=Raindrop(200,400)
+            # Move boss left and right slowly
+            boss_rect.x += math.sin(pygame.time.get_ticks() / 1000) * 2
+            boss_rect.x = max(0, min(boss_rect.x, WINDOW_WIDTH - BOSS_SIZE))
 
-"""
-#style = ('Courier', 30, 'italic')
-#turtle.write("nothing", font=style, align='center')
-#turtle.hideturtle()
-screen.mainloop()
+        # Game logic
+        if game_state.is_active:
+            # Handle ball spawning
+            if game_state.ball_delay <= 0:
+                game_state.balls.append(spawn_ball(boss_rect))
+                game_state.ball_delay = BALL_DELAY
+            else:
+                game_state.ball_delay -= 1
+
+            # Update and check all balls
+            for ball in game_state.balls[:]:
+                if not ball.is_active:
+                    game_state.balls.remove(ball)
+                    continue
+
+                ball.update()
+
+                # Check if caught by player
+                if not ball.is_caught:
+                    if (player_rect.left <= ball.x <= player_rect.right and
+                        player_rect.top - RAINDROP_SIZE <= ball.y <= player_rect.bottom):
+                        ball.reflect(player_rect.x, player_rect.width)
+                        game_state.score += 1
+
+                # Check if hit boss
+                if ball.is_caught and ball.color == BLUE:
+                    if (boss_rect.left <= ball.x <= boss_rect.right and
+                        boss_rect.top <= ball.y <= boss_rect.bottom):
+                        ball.is_active = False
+                        game_state.boss_health -= 1
+                        if game_state.boss_health <= 0:
+                            game_state.is_active = False
+                            game_state.victory = True
+
+                # Check if missed
+                if not ball.is_caught and ball.y > WINDOW_HEIGHT:
+                    ball.is_active = False
+                    game_state.miss_count += 1
+                    if game_state.miss_count >= 4:
+                        game_state.is_active = False
+
+        # Drawing
+        screen.fill(BLACK)
+
+        # Draw parabolic paddle
+        draw_parabolic_paddle(screen, player_rect.x, player_rect.width, player_rect.height, BLUE)
+
+        # Draw boss
+        pygame.draw.rect(screen, RED, boss_rect)
+
+        # Draw all active balls
+        for ball in game_state.balls:
+            if ball.is_active:
+                ball.draw(screen)
+
+        # Draw score and health
+        score_text = game_state.font.render(f'Score: {game_state.score}', True, WHITE)
+        health_text = game_state.font.render(f'Boss Health: {game_state.boss_health}%', True, RED)
+        lives_text = game_state.font.render(f'Lives: {"*" * (4 - game_state.miss_count)}', True, YELLOW)
+
+        screen.blit(score_text, (10, 10))
+        screen.blit(health_text, (WINDOW_WIDTH - 200, 10))
+        screen.blit(lives_text, (WINDOW_WIDTH // 2 - 50, 10))
+
+        # Draw game over, victory, or start screen
+        if not game_state.is_active:
+            if game_state.victory:
+                victory_text = game_state.big_font.render('VICTORY!', True, BLUE)
+                final_score_text = game_state.font.render(f'Final Score: {game_state.score}', True, WHITE)
+                screen.blit(victory_text, (WINDOW_WIDTH // 2 - 150, WINDOW_HEIGHT // 2 - 50))
+                screen.blit(final_score_text, (WINDOW_WIDTH // 2 - 100, WINDOW_HEIGHT // 2 + 20))
+            elif game_state.miss_count >= 4:
+                game_over_text = game_state.big_font.render('GAME OVER', True, RED)
+                final_score_text = game_state.font.render(f'Final Score: {game_state.score}', True, WHITE)
+                screen.blit(game_over_text, (WINDOW_WIDTH // 2 - 150, WINDOW_HEIGHT // 2 - 50))
+                screen.blit(final_score_text, (WINDOW_WIDTH // 2 - 100, WINDOW_HEIGHT // 2 + 20))
+            else:
+                start_text = game_state.big_font.render('Press SPACE to Start', True, WHITE)
+                screen.blit(start_text, (WINDOW_WIDTH // 2 - 200, WINDOW_HEIGHT // 2))
+
+        # Draw controls info
+        controls_text = game_state.font.render('F: Toggle Fullscreen | ESC: Quit', True, WHITE)
+        screen.blit(controls_text, (WINDOW_WIDTH // 2 - 150, WINDOW_HEIGHT - 30))
+
+        pygame.display.flip()
+        clock.tick(FPS)
+
+if __name__ == '__main__':
+    main()
 
